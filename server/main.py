@@ -1,4 +1,5 @@
 """MeetNotes — 轻量会议纪要服务"""
+import json
 import logging
 import os
 import re
@@ -69,7 +70,7 @@ def _save_upload(file: UploadFile) -> tuple[str, str]:
 
 @app.post("/api/meetings")
 async def upload_meeting(file: UploadFile = File(...), title: str = Form("")):
-    if get_config()["transcriber"] == "ark" and not get_config()["ark_api_key"]:
+    if get_config()["transcriber"] == "ark" and not get_config().get("asr", {}).get("api_key"):
         raise HTTPException(400, "尚未配置方舟 API Key，请先到设置页填写")
     mid, path = _save_upload(file)
     title = (title or "").strip() or os.path.splitext(file.filename)[0][:60]
@@ -166,16 +167,29 @@ def audio_file(filename: str):
 
 # ---------------- settings ----------------
 
-SECRET_KEYS = {"ark_api_key"}
+SECRET_FIELDS = [("asr", "api_key"), ("llm", "api_key")]
 
 
 def _mask(cfg: dict) -> dict:
-    out = dict(cfg)
-    k = out.get("ark_api_key") or ""
-    out["ark_api_key_set"] = bool(k)
-    out["ark_api_key_hint"] = (k[:6] + "****" + k[-4:]) if len(k) > 12 else ("已设置" if k else "")
-    out.pop("ark_api_key", None)
+    """返回脱敏副本：api_key 替换为 *_set / *_hint 两个字段"""
+    out = json.loads(json.dumps(cfg, ensure_ascii=False))  # deep copy
+    for blk, key in SECRET_FIELDS:
+        v = (out.get(blk) or {}).get(key) or ""
+        out[blk][key + "_set"] = bool(v)
+        out[blk][key + "_hint"] = (v[:5] + "****" + v[-4:]) if len(v) > 12 else ("已设置" if v else "")
+        out[blk].pop(key, None)
     return out
+
+
+def _apply_secret(cfg: dict, blk: str, incoming: dict):
+    """api_key 留空/缺失 = 保持原值；非空则更新"""
+    if blk not in cfg:
+        return
+    new_key = incoming.get("api_key")
+    if new_key:  # 非空才覆盖
+        cfg[blk]["api_key"] = str(new_key).strip()
+    incoming.pop("api_key", None)
+    cfg[blk].update(incoming)
 
 
 @app.get("/api/settings")
@@ -187,7 +201,12 @@ def get_settings():
 def put_settings(body: dict = Body(...)):
     cfg = get_config()
     for k, v in body.items():
-        if k in cfg and v is not None:
+        if v is None:
+            continue
+        if k in ("asr", "llm") and isinstance(v, dict):
+            _apply_secret(cfg, k, {kk: str(vv).strip() if isinstance(vv, str) else vv
+                                   for kk, vv in v.items()})
+        elif k in cfg:
             if k == "chunk_seconds":
                 v = max(120, min(int(v), 1800))
             cfg[k] = str(v).strip() if isinstance(v, str) else v

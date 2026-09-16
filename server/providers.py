@@ -9,42 +9,45 @@ from .config import get_config
 
 
 class ArkClient:
-    """火山方舟 chat/completions：文本对话 + input_audio 转写"""
+    """chat/completions 双通道客户端：
+    - chat_text  → llm 通道（独立 base_url / api_key / model，任意 OpenAI 兼容端）
+    - transcribe_file → asr 通道
+    """
 
-    def __init__(self):
-        cfg = get_config()
-        self.api_key = cfg["ark_api_key"]
-        self.base = cfg["ark_base_url"].rstrip("/")
-
-    def _post(self, payload: dict) -> dict:
+    @staticmethod
+    def _post(base: str, api_key: str, payload: dict) -> dict:
         r = httpx.post(
-            f"{self.base}/chat/completions",
-            headers={"Authorization": f"Bearer {self.api_key}"},
+            f"{base.rstrip('/')}/chat/completions",
+            headers={"Authorization": f"Bearer {api_key}"},
             json=payload,
             timeout=300,
         )
         if r.status_code != 200:
-            raise RuntimeError(f"方舟 API {r.status_code}: {r.text[:400]}")
+            raise RuntimeError(f"LLM/ASR API {r.status_code}: {r.text[:400]}")
         return r.json()
 
     def chat_text(self, system: str, user: str) -> str:
-        cfg = get_config()
-        resp = self._post({
-            "model": cfg["llm_model"],
+        cfg = get_config()["llm"]
+        payload = {
+            "model": cfg["model"],
             "messages": [
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},
             ],
-        })
+        }
+        # deepseek 系思考模型：按配置开关思考（纪要任务默认关闭，快且省 token）
+        if "deepseek" in cfg.get("base_url", "") or "deepseek" in cfg.get("model", ""):
+            payload["thinking"] = {"type": cfg.get("thinking", "disabled")}
+        resp = self._post(cfg["base_url"], cfg["api_key"], payload)
         return resp["choices"][0]["message"]["content"]
 
     def transcribe_file(self, mp3_path: str) -> str:
-        """一段音频 → 纯文本转写"""
-        cfg = get_config()
+        """一段音频 → 纯文本转写（input_audio，方舟系端点）"""
+        cfg = get_config()["asr"]
         with open(mp3_path, "rb") as f:
             b64 = base64.b64encode(f.read()).decode()
-        resp = self._post({
-            "model": cfg["asr_model"],
+        resp = self._post(cfg["base_url"], cfg["api_key"], {
+            "model": cfg["model"],
             "messages": [{
                 "role": "user",
                 "content": [

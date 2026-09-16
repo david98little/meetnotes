@@ -346,15 +346,22 @@ async function renderSettings(){
          </select>
          <div class="hint">本地引擎需先执行 pip install faster-whisper</div>
        </div>
-       <div class="field"><label>方舟 API Key</label>
-         <input id="f-key" type="password" placeholder="${esc(s.ark_api_key_hint||'尚未设置')}"
-           onfocus="this.placeholder=''" >
-         <div class="hint">留空表示保持不变。当前：<b>${esc(s.ark_api_key_hint||'未设置')}</b></div>
-       </div>
+       <div class="field"><label>方舟 Base URL（ASR）</label>
+         <input id="f-asr-url" value="${esc(s.asr.base_url)}"></div>
+       <div class="field"><label>方舟 API Key（ASR）</label>
+         <input id="f-asr-key" type="password" placeholder="${esc(s.asr.api_key_hint||'尚未设置')}" onfocus="this.placeholder=''"></div>
        <div class="field"><label>ASR 模型</label>
-         <input id="f-asr" value="${esc(s.asr_model)}"></div>
-       <div class="field"><label>文本模型（润色/摘要）</label>
-         <input id="f-llm" value="${esc(s.llm_model)}"></div>
+         <input id="f-asr-model" value="${esc(s.asr.model)}"></div>
+       <div class="field"><label>文本 Base URL（润色/摘要）</label>
+         <input id="f-llm-url" value="${esc(s.llm.base_url)}">
+         <div class="hint">DeepSeek 官方：https://api.deepseek.com ｜ 方舟：https://ark.cn-beijing.volces.com/api/v3</div>
+       </div>
+       <div class="field"><label>文本 API Key</label>
+         <input id="f-llm-key" type="password" placeholder="${esc(s.llm.api_key_hint||'尚未设置')}" onfocus="this.placeholder=''"></div>
+       <div class="field"><label>文本模型</label>
+         <input id="f-llm-model" value="${esc(s.llm.model)}">
+         <div class="hint">任意 OpenAI 兼容模型；deepseek 系自动关闭思考模式以提速</div>
+       </div>
        <div class="field"><label>切片目标时长（秒）</label>
          <input id="f-chunk" type="number" value="${+s.chunk_seconds}">
          <div class="hint">长音频按此长度在静音处切片并行转写</div>
@@ -374,10 +381,13 @@ async function renderSettings(){
    </div>`;
   document.getElementById('saveSettings').onclick=async()=>{
     const g=id=>document.getElementById(id).value.trim();
-    const body={transcriber:g('f-transcriber'), asr_model:g('f-asr'), llm_model:g('f-llm'),
+    const body={transcriber:g('f-transcriber'),
+      asr:{base_url:g('f-asr-url'), model:g('f-asr-model')},
+      llm:{base_url:g('f-llm-url'), model:g('f-llm-model')},
       chunk_seconds:+g('f-chunk')||600, whisper_model_size:g('f-wsize'),
       attendees:g('f-attendees'), hotwords:g('f-hotwords')};
-    if(g('f-key')) body.ark_api_key=g('f-key');
+    if(g('f-asr-key')) body.asr.api_key=g('f-asr-key');
+    if(g('f-llm-key')) body.llm.api_key=g('f-llm-key');
     try{ await api('/api/settings',{method:'PUT',headers:{'Content-Type':'application/json'},
       body:JSON.stringify(body)}); toast('✅ 设置已保存'); }
     catch(e){ alert('保存失败：'+e.message) }

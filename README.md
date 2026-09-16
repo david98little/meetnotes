@@ -42,10 +42,12 @@ cd meetnotes
 
 ### 2. 配置转录引擎
 
-默认使用火山方舟。**ASR 与文本模型可独立配置**（设置页分别填写），默认组合：转写 `doubao-seed-2-0-mini`，文本生成 `deepseek-v4-flash-ga`。二选一：
+默认**双厂商组合**：语音识别走火山方舟（豆包），文本生成走 DeepSeek 官方（`deepseek-flash`，自动关闭思考模式提速）。两组各自独立配置 Base URL / API Key / 模型，可自由混搭任意 OpenAI 兼容端点。
 
-- 在 Web 设置页填入 API Key（推荐）
-- 或复制 `.env.example` 为 `.env`，填入 `ARK_API_KEY`
+配置方式二选一：
+
+- 在 Web 设置页分别填写「方舟 API Key（ASR）」与「文本 API Key」（推荐）
+- 或复制 `.env.example` 为 `.env` 填入方舟 Key（仅引导 ASR；文本 Key 在设置页或 `data/config.json` 的 `llm.api_key`）
 
 切换本地离线引擎：`pip install faster-whisper`，然后在设置页把转录引擎切为 Whisper Local。
 
@@ -122,8 +124,9 @@ meetnotes/
 ## 技术说明
 
 - **切片策略**：先 16kHz 单声道归一化，在静音中点切分 120–1800s 片段并行转写，避免切断词语
-- **ASR 与文本模型独立配置**：`asr_model`（语音识别）与 `llm_model`（文稿整理/摘要）分字段设置，互不影响
-- **方舟直调模型名需带版本号**（如 `deepseek-v4-flash-ga-260731`，裸名会 404）
+- **ASR 与文本模型独立配置**：`asr` 与 `llm` 两通道各自 `base_url / api_key / model`，互不影响，跨厂商混搭
+- **方舟直调模型名需带版本号**（如 `deepseek-v4-flash-ga-260731`，裸名会 404）；DeepSeek 官方模型名不带版本号（如 `deepseek-flash`）
+- **deepseek 系思考模型自动关闭思考**（`llm.thinking: disabled`，可改 `enabled` 换取更深推理）
 - **热词修正**：热词与参会人注入整理提示词，专有名词（产品名、内部系统名）可在文稿层自动纠正
 - **状态机**：每场会议 queued → processing → done/failed，任一步骤失败可单独重跑
 - **扩展引擎**：`server/providers.py` 抽象了转写与文本生成接口，新增引擎只需实现两个方法
