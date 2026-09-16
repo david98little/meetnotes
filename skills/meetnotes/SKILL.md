@@ -9,7 +9,7 @@ description: 会议纪要 CLI（mn）— 转录音频生成整理稿/摘要/待�
 
 ## 命令一览
 
-所有命令支持 `--json` 输出机器可读 JSON（解析时务必使用）。若直接调用 `mn` 报找不到命令，用 `cmd /c mn ...`。
+所有命令支持 `--json` 输出机器可读 JSON（解析时务必使用）。若直接调用 `mn` 报找不到命令：Windows 用 `cmd /c mn ...`；macOS/Linux 确认 `mn` 已加入 PATH。
 
 | 命令 | 用途 |
 |---|---|

@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# mn 命令注册模板（macOS / Linux）
+# 复制本文件为 mn，替换为你的项目路径，然后：
+#   chmod +x mn && sudo cp mn /usr/local/bin/
+# （或放到任何已在 PATH 中的目录，如 ~/bin）
+BIN_ROOT="/path/to/meetnotes"
+exec "$BIN_ROOT/.venv/bin/python" "$BIN_ROOT/cli.py" "$@"

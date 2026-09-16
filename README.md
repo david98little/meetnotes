@@ -32,15 +32,13 @@ cd meetnotes
 start.bat        :: 首次运行自动创建虚拟环境并安装依赖，然后打开 http://localhost:8618
 ```
 
-<details>
-<summary>Linux / macOS 手动启动</summary>
+macOS / Linux：
 
 ```bash
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-python -m uvicorn server.main:app --host 127.0.0.1 --port 8618
+git clone https://github.com/david98little/meetnotes.git
+cd meetnotes
+./start.sh       # 同样自动建环境；macOS 需先 brew install ffmpeg
 ```
-</details>
 
 ### 2. 配置转录引擎
 
@@ -80,28 +78,29 @@ mn transcribe 会议录音.m4a --title 项目周例会
 仓库内置 [skills/meetnotes/SKILL.md](skills/meetnotes/SKILL.md)。把它复制进 Agent 的 skill 目录即可：
 
 ```bash
-# 三家共享目录（本机有多个 Agent 时推荐）
+# 三家共享目录（本机有多个 Agent 时推荐），macOS / Linux / Windows(Git Bash) 通用
 cp -r skills/meetnotes ~/.agents/skills/
 
 # 或仅 Claude Code
 cp -r skills/meetnotes ~/.claude/skills/
 ```
 
-Windows 下再注册 `mn` 命令（把项目根加入调用）：
+**注册 `mn` 命令：**
 
-```bat
-:: 以管理员或用户级 PATH 目录为例（npm 全局目录已在 PATH 中）
-copy mn.cmd "%APPDATA%\npm\mn.cmd"
-```
-
-`mn.cmd` 内容两行，指向你的项目路径：
-
-```bat
-@echo off
-"C:\path\to\meetnotes\.venv\Scripts\python.exe" "C:\path\to\meetnotes\cli.py" %*
-```
+- **Windows**：复制 `mn.cmd.example` 为 `mn.cmd`，改两处项目路径，放到 PATH 目录（如 `%APPDATA%\npm`）
+- **macOS / Linux**：`cp mn.sh.example mn && chmod +x mn && sudo cp mn /usr/local/bin/`，同样先改脚本内项目路径
 
 之后直接用自然语言驱动 Agent：「把本周所有会议的待办汇总成清单」「搜一下哪场会议聊过登录模块」——Agent 会自己调用 `mn` 完成检索与汇总。
+
+## 平台支持
+
+| 平台 | 状态 |
+|---|---|
+| Windows 10/11 | ✅ 一键 start.bat + mn.cmd |
+| macOS (Intel/Apple Silicon) | ✅ start.sh；ffmpeg via Homebrew；faster-whisper 走 CPU |
+| Linux | ✅ start.sh；ffmpeg via 包管理器 |
+
+前后端核心代码无平台专属依赖；页面录音需 Chrome/Edge 等支持 getUserMedia 的浏览器。
 
 ## 架构
 
