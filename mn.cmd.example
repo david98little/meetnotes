@@ -1,0 +1,4 @@
+@echo off
+rem 复制本文件为 mn.cmd，替换为你的项目路径后，放到 PATH 目录（如 %APPDATA%\npm）
+chcp 65001 >nul
+"C:\path\to\meetnotes\.venv\Scripts\python.exe" "C:\path\to\meetnotes\cli.py" %*

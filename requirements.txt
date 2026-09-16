@@ -1,0 +1,6 @@
+fastapi>=0.115
+uvicorn[standard]>=0.30
+httpx>=0.27
+python-multipart>=0.0.9
+# 可选：本地离线转写引擎（安装后可在设置里切换 transcriber=whisper-local）
+# faster-whisper>=1.0

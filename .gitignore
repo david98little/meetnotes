@@ -1,0 +1,16 @@
+# 运行时数据与密钥（务必保持忽略）
+.env
+data/
+server.log
+*.log
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
