@@ -90,7 +90,8 @@ async function refreshList(poll=false){
     if(!list.length) el.innerHTML=`<div class="empty">还没有会议记录，上传一段录音开始吧</div>`;
     const drawRows=(rows)=>{
       for(const m of rows){
-        const d=document.createElement('div'); d.className='mrow';
+        const d=document.createElement('div'); d.className='mrow'; d.draggable=true;
+        d.ondragstart=e=>{ e.dataTransfer.setData('text/meetid', m.id); e.dataTransfer.effectAllowed='move'; };
         d.innerHTML = `
         <div class="m-main"><div class="m-title">${esc(m.title)}</div>
           <div class="m-sub">${esc(m.created_at)}${m.duration?` · ${fmtDur(m.duration)}`:''}</div></div>
@@ -102,15 +103,28 @@ async function refreshList(poll=false){
         el.appendChild(d);
       }
     };
+    const foldKey=(n)=>n||'__none__';
+    const getFolded=()=>{ try{ return JSON.parse(localStorage.getItem('mn_folded')||'[]') }catch{ return [] } };
+    const setFolded=(arr)=>localStorage.setItem('mn_folded', JSON.stringify(arr));
     const drawGroup=(name, rows)=>{
-      const g=document.createElement('div'); g.className='proj-group';
-      g.innerHTML=`<div class="proj-head">
+      const folded=getFolded().includes(foldKey(name));
+      const g=document.createElement('div'); g.className='proj-group'; g.dataset.proj=name||'__none__';
+      g.innerHTML=`<div class="proj-head ${folded?'folded':''}">
+          <span class="proj-arrow">${folded?'▸':'▾'}</span>
           <span class="proj-name">📁 ${esc(name||'未分组')}</span>
           <span class="proj-count">${rows.length} 场</span>
           ${name?`<span class="proj-ops">
             <button class="proj-btn" data-op="rename" title="重命名项目">✏️</button>
             <button class="proj-btn" data-op="dissolve" title="解散分组（会议保留）">✕</button></span>`:''}
         </div>`;
+      // 折叠/展开（点头切换）
+      g.querySelector('.proj-head').onclick=e=>{
+        if(e.target.closest('.proj-btn')) return;
+        const arr=getFolded(); const k=foldKey(name);
+        const i=arr.indexOf(k);
+        if(i>=0) arr.splice(i,1); else arr.push(k);
+        setFolded(arr); renderList();
+      };
       if(name){
         g.querySelector('[data-op=rename]').onclick=async e=>{ e.stopPropagation();
           const nn=prompt('新项目名称：', name); if(!nn||nn.trim()===name) return;
@@ -123,8 +137,23 @@ async function refreshList(poll=false){
             await api(`/api/projects/${encodeURIComponent(name)}`,{method:'DELETE'});
             curProjectFilter=''; renderList(); }};
       }
+      // 拖拽移动会议到该组
+      g.ondragover=e=>{ e.preventDefault(); g.classList.add('drag-over') };
+      g.ondragleave=e=>{ if(!g.contains(e.relatedTarget)) g.classList.remove('drag-over') };
+      g.ondrop=async e=>{
+        e.preventDefault(); g.classList.remove('drag-over');
+        const mid=e.dataTransfer.getData('text/meetid'); if(!mid) return;
+        const m=list.find(x=>x.id===mid); if(!m) return;
+        if((m.project||'')===(name||'')) return;
+        await api(`/api/meetings/${mid}`,{method:'PATCH',
+          headers:{'Content-Type':'application/json'},body:JSON.stringify({project:name||''})});
+        toast(`「${m.title}」已移至 ${name||'未分组'}`);
+        renderList();
+      };
       el.appendChild(g);
-      drawRows(rows);
+      if(!folded) drawRows(rows);
+      else { const tip=document.createElement('div'); tip.className='fold-tip';
+        tip.textContent=`已折叠 ${rows.length} 场会议`; el.appendChild(tip); }
     };
     if(list.length){
       if(curProjectFilter==='__none__'){ if(groups['']) drawGroup('', groups['']) }

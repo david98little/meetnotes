@@ -193,3 +193,16 @@ nav a.active{color:var(--green-d);border-color:var(--green)}
 .nav-btn{border:none;background:none;font-size:.95rem;color:var(--ink2);cursor:pointer;
   padding:6px 10px;border-radius:8px;font-family:inherit}
 .nav-btn:hover{background:#eef5f2;color:var(--green-d)}
+
+/* 折叠 & 拖拽 */
+.proj-arrow{font-size:.75rem;color:var(--ink3);width:14px;text-align:center}
+.proj-head{cursor:pointer;user-select:none;transition:background .15s,border-color .15s,border-style .15s}
+.proj-head:hover{background:#e4f1ec}
+.proj-group.drag-over .proj-head{border-style:solid;border-color:var(--green);
+  background:#dcf3ea;box-shadow:0 0 0 3px rgba(5,150,105,.12)}
+.proj-group.drag-over{outline:2px dashed var(--green);outline-offset:3px;border-radius:10px}
+.mrow[draggable="true"]{cursor:grab}
+.mrow[draggable="true"]:active{cursor:grabbing;opacity:.7}
+.fold-tip{font-size:.8rem;color:var(--ink3);padding:6px 12px;margin-bottom:6px;
+  background:#f6f9f8;border-radius:8px;border:1px dashed var(--line)}
+.nav-btn{font-size:1.15rem;line-height:1;padding:6px 9px}
