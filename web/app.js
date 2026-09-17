@@ -65,7 +65,9 @@ async function renderList(){
       <input type="file" id="fileInput" multiple hidden accept="audio/*,.amr,.opus">
     </div>
     <div style="text-align:center;margin:-8px 0 4px"><button class="btn-rec" id="btnRec">🎙️ 开始页面录音</button></div>
-    <div class="list-head"><h2>全部会议</h2></div>
+    <div class="list-head"><h2>全部会议</h2>
+      <select id="projFilter" class="proj-filter"></select></div>
+    <div class="proj-assign" id="projAssign"></div>
     <div class="meet-list" id="meetList"></div>`;
   bindUpload(); bindRec(); await refreshList(true);
 
@@ -75,22 +77,81 @@ async function renderList(){
   dz.ondrop=e=>{e.preventDefault();dz.classList.remove('over');uploadFiles(e.dataTransfer.files)};
 }
 
+let curProjectFilter='';   // ''=全部 | 项目名 | '__none__'
 async function refreshList(poll=false){
   try{
     const list = await api('/api/meetings');
     const el = document.getElementById('meetList'); if(!el) return;
-    el.innerHTML = list.length ? '' : `<div class="empty">还没有会议记录，上传一段录音开始吧</div>`;
-    for(const m of list){
-      const d=document.createElement('div'); d.className='mrow';
-      d.innerHTML = `
+    const groups={};
+    for(const m of list){ const p=m.project||''; (groups[p]=groups[p]||[]).push(m) }
+    el.innerHTML='';
+    const named=Object.keys(groups).filter(k=>k).sort((a,b)=>{
+      const ca=groups[a].length, cb=groups[b].length; return cb-ca||a.localeCompare(b) });
+    if(!list.length) el.innerHTML=`<div class="empty">还没有会议记录，上传一段录音开始吧</div>`;
+    const drawRows=(rows)=>{
+      for(const m of rows){
+        const d=document.createElement('div'); d.className='mrow';
+        d.innerHTML = `
         <div class="m-main"><div class="m-title">${esc(m.title)}</div>
           <div class="m-sub">${esc(m.created_at)}${m.duration?` · ${fmtDur(m.duration)}`:''}</div></div>
         ${badgeHtml(m)} <button class="del-btn" title="删除">✕</button>`;
-      d.onclick=()=>location.hash=`#/m/${m.id}`;
-      d.querySelector('.del-btn').onclick=async e=>{ e.stopPropagation();
-        if(confirm(`删除会议「${m.title}」？音频和纪要将一并删除`)){
-          await api(`/api/meetings/${m.id}`,{method:'DELETE'}); refreshList(); }};
-      el.appendChild(d);
+        d.onclick=()=>location.hash=`#/m/${m.id}`;
+        d.querySelector('.del-btn').onclick=async e=>{ e.stopPropagation();
+          if(confirm(`删除会议「${m.title}」？音频和纪要将一并删除`)){
+            await api(`/api/meetings/${m.id}`,{method:'DELETE'}); refreshList(); }};
+        el.appendChild(d);
+      }
+    };
+    const drawGroup=(name, rows)=>{
+      const g=document.createElement('div'); g.className='proj-group';
+      g.innerHTML=`<div class="proj-head">
+          <span class="proj-name">📁 ${esc(name||'未分组')}</span>
+          <span class="proj-count">${rows.length} 场</span>
+          ${name?`<span class="proj-ops">
+            <button class="proj-btn" data-op="rename" title="重命名项目">✏️</button>
+            <button class="proj-btn" data-op="dissolve" title="解散分组（会议保留）">✕</button></span>`:''}
+        </div>`;
+      if(name){
+        g.querySelector('[data-op=rename]').onclick=async e=>{ e.stopPropagation();
+          const nn=prompt('新项目名称：', name); if(!nn||nn.trim()===name) return;
+          await api(`/api/projects/${encodeURIComponent(name)}`,{method:'PATCH',
+            headers:{'Content-Type':'application/json'},body:JSON.stringify({name:nn.trim()})});
+          if(curProjectFilter===name) curProjectFilter=nn.trim();
+          renderList(); };
+        g.querySelector('[data-op=dissolve]').onclick=async e=>{ e.stopPropagation();
+          if(confirm(`解散项目「${name}」？组内 ${rows.length} 场会议将移入未分组`)){
+            await api(`/api/projects/${encodeURIComponent(name)}`,{method:'DELETE'});
+            curProjectFilter=''; renderList(); }};
+      }
+      el.appendChild(g);
+      drawRows(rows);
+    };
+    if(list.length){
+      if(curProjectFilter==='__none__'){ if(groups['']) drawGroup('', groups['']) }
+      else if(curProjectFilter){ if(groups[curProjectFilter]) drawGroup(curProjectFilter, groups[curProjectFilter]) }
+      else { named.forEach(n=>drawGroup(n, groups[n]));
+             if(groups['']) drawGroup('', groups['']) }
+    }
+    // 项目筛选器
+    const sel=document.getElementById('projFilter');
+    if(sel){
+      sel.innerHTML=`<option value="">全部会议 (${list.length})</option>`+
+        named.map(n=>`<option value="${esc(n)}" ${curProjectFilter===n?'selected':''}>📁 ${esc(n)} (${groups[n].length})</option>`).join('')+
+        (groups['']?`<option value="__none__" ${curProjectFilter==='__none__'?'selected':''}>未分组 (${groups[''].length})</option>`:'');
+      sel.onchange=()=>{ curProjectFilter=sel.value; renderList() };
+    }
+    // 上传归组选择器
+    const pa=document.getElementById('projAssign');
+    if(pa){
+      const saved=localStorage.getItem('mn_proj')||'';
+      pa.innerHTML=`<span class="pa-label">新会议归入：</span>
+        <select id="paSel" class="pa-sel"><option value="">未分组</option>${
+          named.map(n=>`<option value="${esc(n)}" ${saved===n?'selected':''}>📁 ${esc(n)}</option>`).join('')}</select>
+        <button class="proj-btn pa-new">＋ 新建项目</button>`;
+      document.getElementById('paSel').onchange=e=>localStorage.setItem('mn_proj',e.target.value);
+      pa.querySelector('.pa-new').onclick=()=>{
+        const nn=prompt('新项目名称：'); if(!nn||!nn.trim()) return;
+        localStorage.setItem('mn_proj', nn.trim()); renderList(); };
     }
     if(list.some(m=>['queued','processing'].includes(m.status))) startPoll(()=>refreshList(true), 4000);
     else stopPoll();
@@ -113,6 +174,7 @@ function bindUpload(){
 async function uploadFiles(files){
   for(const f of files){
     const fd=new FormData(); fd.append('file', f);
+    const pj=localStorage.getItem('mn_proj'); if(pj) fd.append('project', pj);
     try{
       const r=await api('/api/meetings',{method:'POST',body:fd});
       toast(`已上传：「${f.name}」，开始转录`);
@@ -133,6 +195,7 @@ function bindRec(){
         const blob=new Blob(chunks,{type:rec.mimeType});
         const name=`现场录音 ${new Date().toLocaleString('zh-CN',{hour12:false}).slice(5,16).replace('/','-')}`;
         const fd=new FormData(); fd.append('file', blob, `${name}.webm`);
+        const pj=localStorage.getItem('mn_proj'); if(pj) fd.append('project', pj);
         btn.textContent='⬆️ 上传中…'; 
         try{ const r=await api('/api/meetings',{method:'POST',body:fd});
              toast('录音已保存并开始转录'); location.hash=`#/m/${r.id}`; }
@@ -184,6 +247,7 @@ function paintDetail(m){
         <div class="meta-line"><span>状态</span>${statusBadgeInline(m)}</div>
         <div class="meta-line"><span>时长</span><span>${m.duration?fmtDur(m.duration):'解析中'}</span></div>
         <div class="meta-line"><span>创建时间</span><span>${esc(m.created_at)}</span></div>
+        <div class="meta-line"><span>项目</span><span id="projVal">${esc(m.project||'未分组')}</span><button class="title-edit" id="projEdit" title="设置项目">✏️</button></div>
         <div class="steps">
           ${stepRow('transcribing','语音转写',m)}
           ${stepRow('polishing','文稿整理',m)}
@@ -216,6 +280,17 @@ function statusBadgeInline(m){ return badgeHtml(m).replace('class="badge','style
 
 function bindTitleEdit(m){
   const btn=$app.querySelector('#titleEdit'); if(!btn) return;
+  const pe=$app.querySelector('#projEdit'); if(pe) pe.onclick=async()=>{
+    const projects=(await api('/api/projects')).map(p=>p.name);
+    const cur=m.project||'';
+    const nn=prompt(`设置项目名称（现有: ${projects.join('、')||'无'}；留空=未分组）：`, cur);
+    if(nn===null) return;
+    const v=nn.trim();
+    if(v===cur) return;
+    await api(`/api/meetings/${m.id}`,{method:'PATCH',
+      headers:{'Content-Type':'application/json'},body:JSON.stringify({project:v})});
+    curDetail.project=v; toast('✅ 项目已更新'); paintDetail(curDetail);
+  };
   btn.onclick=()=>{
     const wrap=$app.querySelector('#mTitle');
     wrap.classList.add('editing');
@@ -330,14 +405,28 @@ $app.addEventListener('click', async e=>{
   }catch(err){ alert(err.message); b.disabled=false }
 });
 
-/* ---------- 设置页 ---------- */
-async function renderSettings(){
-  setNav('settings'); stopPoll();
+/* ---------- 设置弹窗 ---------- */
+function ensureModal(){
+  if(document.getElementById('modalMask')) return;
+  const mask=document.createElement('div'); mask.id='modalMask';
+  mask.innerHTML=`<div class="modal-card" id="modalCard"></div>`;
+  mask.onclick=e=>{ if(e.target===mask) closeSettings() };
+  document.body.appendChild(mask);
+}
+function closeSettings(){
+  document.getElementById('modalMask')?.remove();
+  document.removeEventListener('keydown', escSettings);
+}
+function escSettings(e){ if(e.key==='Escape') closeSettings() }
+
+async function openSettings(){
+  ensureModal();
   const s=await api('/api/settings');
-  $app.innerHTML=`
-   <div class="set-card">
-     <h2>⚙️ 全局设置</h2>
-     <p class="set-desc">所有配置保存在本机 data/config.json，修改即时生效。</p>
+  const card=document.getElementById('modalCard');
+  card.innerHTML=`
+   <div class="modal-head"><h2>⚙️ 全局设置</h2><button class="modal-close" id="modalClose">✕</button></div>
+   <div class="modal-body">
+   <p class="set-desc">所有配置保存在本机 data/config.json，修改即时生效。</p>
      <div class="grid2">
        <div class="field"><label>转录引擎</label>
          <select id="f-transcriber">
@@ -378,7 +467,7 @@ async function renderSettings(){
        <textarea id="f-hotwords" rows="3" placeholder="每行一个或逗号分隔。例：产品名、专有名词、术语...">${esc(s.hotwords||'')}</textarea>
        <div class="hint">修正 ASR 对人名/项目名/术语的识别错误</div></div>
      <div class="action-bar"><button class="btn primary" id="saveSettings">保存设置</button></div>
-   </div>`;
+   </div></div>`;
   document.getElementById('saveSettings').onclick=async()=>{
     const g=id=>document.getElementById(id).value.trim();
     const body={transcriber:g('f-transcriber'),
@@ -389,9 +478,11 @@ async function renderSettings(){
     if(g('f-asr-key')) body.asr.api_key=g('f-asr-key');
     if(g('f-llm-key')) body.llm.api_key=g('f-llm-key');
     try{ await api('/api/settings',{method:'PUT',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify(body)}); toast('✅ 设置已保存'); }
+      body:JSON.stringify(body)}); toast('✅ 设置已保存'); closeSettings(); }
     catch(e){ alert('保存失败：'+e.message) }
   };
+  document.getElementById('modalClose').onclick=closeSettings;
+  document.addEventListener('keydown', escSettings);
 }
 
 /* ---------- 轮询 & 路由 ---------- */
@@ -399,10 +490,10 @@ function startPoll(fn,ms){ stopPoll(); pollTimer=setInterval(fn,ms) }
 function stopPoll(){ if(pollTimer){clearInterval(pollTimer);pollTimer=null} }
 
 window.addEventListener('hashchange',route);
+document.getElementById('navSettings')?.addEventListener('click', openSettings);
 async function route(){
   const h=location.hash;
   if(h.startsWith('#/m/')) await renderDetail(h.slice(4));
-  else if(h==='#/settings') await renderSettings();
   else await renderList();
 }
 route();

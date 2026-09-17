@@ -69,12 +69,12 @@ def _save_upload(file: UploadFile) -> tuple[str, str]:
 
 
 @app.post("/api/meetings")
-async def upload_meeting(file: UploadFile = File(...), title: str = Form("")):
+async def upload_meeting(file: UploadFile = File(...), title: str = Form(""), project: str = Form("")):
     if get_config()["transcriber"] == "ark" and not get_config().get("asr", {}).get("api_key"):
-        raise HTTPException(400, "尚未配置方舟 API Key，请先到设置页填写")
+        raise HTTPException(400, "尚未配置方舟 API Key，请先到设置填写")
     mid, path = _save_upload(file)
     title = (title or "").strip() or os.path.splitext(file.filename)[0][:60]
-    db.create_meeting(mid, title, datetime.now().strftime("%Y-%m-%d %H:%M"))
+    db.create_meeting(mid, title, datetime.now().strftime("%Y-%m-%d %H:%M"), project)
     submit_new(mid)
     return {"id": mid}
 
@@ -82,6 +82,25 @@ async def upload_meeting(file: UploadFile = File(...), title: str = Form("")):
 @app.get("/api/meetings")
 def list_meetings():
     return db.list_meetings()
+
+
+@app.get("/api/projects")
+def get_projects():
+    return db.list_projects()
+
+
+@app.patch("/api/projects/{name}")
+def rename_project(name: str, body: dict = Body(...)):
+    if "name" not in body or not str(body["name"]).strip():
+        raise HTTPException(400, "新项目名不能为空")
+    new = db.rename_project(name, str(body["name"]))
+    return {"ok": True, "name": new}
+
+
+@app.delete("/api/projects/{name}")
+def dissolve_project(name: str):
+    db.dissolve_project(name)
+    return {"ok": True}
 
 
 @app.get("/api/meetings/{mid}")
@@ -100,13 +119,20 @@ def meeting_detail(mid: str):
 
 @app.patch("/api/meetings/{mid}")
 def rename_meeting(mid: str, body: dict = Body(...)):
-    title = (body.get("title") or "").strip()
-    if not title:
-        raise HTTPException(400, "标题不能为空")
     if not db.get_meeting(mid):
         raise HTTPException(404, "会议不存在")
-    db.update_meeting(mid, title=title[:80])
-    return {"ok": True, "title": title[:80]}
+    updates = {}
+    if "title" in body:
+        title = (body.get("title") or "").strip()
+        if not title:
+            raise HTTPException(400, "标题不能为空")
+        updates["title"] = title[:80]
+    if "project" in body:
+        updates["project"] = (str(body.get("project") or "")).strip()[:40]
+    if not updates:
+        raise HTTPException(400, "无可更新字段")
+    db.update_meeting(mid, **updates)
+    return {"ok": True, **updates}
 
 
 @app.delete("/api/meetings/{mid}")

@@ -152,3 +152,44 @@ nav a.active{color:var(--green-d);border-color:var(--green)}
   border-radius:50%;animation:rot .7s linear infinite;vertical-align:-2px}
 @keyframes rot{to{transform:rotate(360deg)}}
 .progress-note{font-size:.83rem;color:var(--amber);margin-top:10px}
+
+/* ---------- 设置弹窗 ---------- */
+#modalMask{position:fixed;inset:0;background:rgba(15,23,42,.45);backdrop-filter:blur(2px);
+  z-index:50;display:flex;align-items:flex-start;justify-content:center;padding:6vh 16px;
+  animation:fadeIn .15s ease}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.modal-card{background:var(--card);border-radius:16px;width:min(760px,96vw);max-height:88vh;
+  display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,.22);
+  animation:popIn .18s ease}
+@keyframes popIn{from{opacity:0;transform:translateY(14px) scale(.985)}to{opacity:1;transform:none}}
+.modal-head{display:flex;align-items:center;justify-content:space-between;
+  padding:18px 24px 0}
+.modal-head h2{font-size:1.08rem}
+.modal-close{border:none;background:#f1f5f4;width:30px;height:30px;border-radius:8px;
+  cursor:pointer;font-size:.9rem;color:var(--ink2)}
+.modal-close:hover{background:#e2e8e6;color:var(--red)}
+.modal-body{padding:6px 24px 22px;overflow-y:auto}
+.modal-body .set-card{border:none;padding:0;max-width:none;box-shadow:none}
+
+/* ---------- 项目分组 ---------- */
+.proj-group{margin-top:14px}
+.proj-head{display:flex;align-items:center;gap:10px;padding:7px 10px;margin-bottom:6px;
+  background:#eef5f2;border-radius:9px;border:1px dashed #cfe2da}
+.proj-name{font-weight:600;font-size:.92rem;color:#0f766e}
+.proj-count{font-size:.8rem;color:var(--ink3)}
+.proj-ops{margin-left:auto;display:none;gap:4px}
+.proj-head:hover .proj-ops{display:flex}
+.proj-btn{border:none;background:none;cursor:pointer;font-size:.82rem;padding:2px 6px;
+  border-radius:6px;color:var(--ink2)}
+.proj-btn:hover{background:#fff;color:var(--green-d)}
+.list-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.proj-filter{border:1px solid var(--line);border-radius:8px;padding:6px 10px;
+  font-size:.85rem;background:#fff;color:var(--ink2);cursor:pointer}
+.proj-assign{display:flex;align-items:center;gap:8px;margin:8px 0 2px;font-size:.85rem;color:var(--ink2)}
+.pa-sel{border:1px solid var(--line);border-radius:8px;padding:5px 8px;background:#fff;
+  font-size:.85rem;cursor:pointer}
+.pa-new{border:1px dashed var(--line);color:var(--ink3)}
+.pa-new:hover{color:var(--green-d);border-color:var(--green)}
+.nav-btn{border:none;background:none;font-size:.95rem;color:var(--ink2);cursor:pointer;
+  padding:6px 10px;border-radius:8px;font-family:inherit}
+.nav-btn:hover{background:#eef5f2;color:var(--green-d)}
