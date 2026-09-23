@@ -244,3 +244,4 @@ nav a.active{color:var(--green-d);border-color:var(--green)}
 .heat-cell.lv1{background:#d1fae5}.heat-cell.lv2{background:#6ee7b7}
 .heat-cell.lv3{background:#10b981}.heat-cell.lv4{background:#059669}
 .heat-legend{margin-top:10px;font-size:.75rem;color:var(--ink3);display:flex;align-items:center;gap:3px}
+.stat-grid2 > .stat-card-lg{min-width:0}

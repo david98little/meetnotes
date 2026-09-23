@@ -176,7 +176,9 @@ def get_stats(rng: str = Query("all", alias="range")):
         d += timedelta(days=1)
 
     peak = max(hours.items(), key=lambda x: x[1])[0] if hours else None
+    hour_dist = [{"label": f"{h}", "count": hours.get(h, 0)} for h in range(24)]
     return {
+        "hour_dist": hour_dist,
         "range": rng,
         "totals": {
             "count": len(ms),

@@ -554,6 +554,15 @@ async function renderStats(){
         <div class="trend-num">${x.count||''}</div>
       </div>`).join('')}</div>`
     : `<div class="empty">该范围内暂无会议</div>`;
+  const hourDist=s.hour_dist||[];
+  const maxH=Math.max(...hourDist.map(x=>x.count),1);
+  const hourHtml = hourDist.length? `<div class="trend-chart">${hourDist.map(x=>`
+      <div class="trend-col" title="${x.label}：${x.count} 场">
+        <div class="trend-bar" style="height:${Math.max(4, x.count/maxH*100)}%"></div>
+        <div class="trend-label">${x.label}</div>
+        <div class="trend-num">${x.count||''}</div>
+      </div>`).join('')}</div>`
+    : `<div class="empty">该范围内暂无会议</div>`;
   const maxP=Math.max(...s.projects.map(p=>p.count),1);
   const projHtml = s.projects.length? s.projects.map(p=>`
       <div class="proj-bar-row">
@@ -579,8 +588,9 @@ async function renderStats(){
     <div class="stat-card-lg"><h3>📈 会议数量趋势</h3>${trendHtml}</div>
     <div class="stat-grid2">
       <div class="stat-card-lg"><h3>🗂️ 项目分布</h3>${projHtml}</div>
-      <div class="stat-card-lg"><h3>📅 会议日历</h3>${heatHtml}</div>
-    </div>`;
+      <div class="stat-card-lg"><h3>🕐 时段分布</h3>${hourHtml}</div>
+    </div>
+    <div class="stat-card-lg"><h3>📅 会议日历</h3>${heatHtml}</div>`;
 }
 
 window.addEventListener('hashchange',route);
