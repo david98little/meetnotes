@@ -42,7 +42,7 @@ def submit_new(mid: str):
 
 def submit_retry(mid: str, start_step: str):
     """从指定步骤重跑，包含后续所有步骤"""
-    chain_map = {"transcribing": [_transcribe, _polish, _summarize],
+    chain_map = {"transcribing": [_normalize, _transcribe, _polish, _summarize],
                  "polishing": [_polish, _summarize],
                  "summarizing": [_summarize]}
     chain = chain_map[start_step]
