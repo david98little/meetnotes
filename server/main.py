@@ -137,7 +137,10 @@ def get_stats(rng: str = Query("all", alias="range")):
         dt = _dt(m)
         if not dt:
             continue
-        trend[bucket(dt)] = trend.get(bucket(dt), 0) + 1
+        k = bucket(dt)
+        t = trend.setdefault(k, {"count": 0, "items": []})
+        t["count"] += 1
+        t["items"].append({"id": m["id"], "title": m["title"], "date": m["created_at"]})
         hours[dt.hour] = hours.get(dt.hour, 0) + 1
     order = None
     if rng in ("all", "year"):
@@ -148,15 +151,18 @@ def get_stats(rng: str = Query("all", alias="range")):
         order = ["周一","周二","周三","周四","周五","周六","周日"]
     else:
         order = [f"{h}时" for h in range(24)]
-    trend_list = [{"label": k, "count": trend.get(k, 0)} for k in order if k in trend or range in ("all","year","week","month")]
+    trend_list = [{"label": k, "count": trend.get(k, {}).get("count", 0),
+                   "items": trend.get(k, {}).get("items", [])}
+                  for k in order if k in trend or rng in ("all", "year", "week", "month")]
 
     # 项目分布
     proj = {}
     for m in ms:
         p = m.get("project") or ""
-        d = proj.setdefault(p, {"name": p or "未分组", "count": 0, "duration": 0})
+        d = proj.setdefault(p, {"name": p or "未分组", "count": 0, "duration": 0, "items": []})
         d["count"] += 1
         d["duration"] += m.get("duration") or 0
+        d["items"].append({"id": m["id"], "title": m["title"], "date": m["created_at"]})
     projects = sorted(proj.values(), key=lambda x: -x["count"])[:8]
 
     # 日历热力图（固定近 365 天，不受 range 影响）
@@ -167,18 +173,19 @@ def get_stats(rng: str = Query("all", alias="range")):
     for m in all_ms:
         dt = _dt(m)
         if dt and dt >= cal_start:
-            daily[dt.strftime("%Y-%m-%d")] = daily.get(dt.strftime("%Y-%m-%d"), 0) + 1
+            key = dt.strftime("%Y-%m-%d")
+            daily.setdefault(key, [])
+            daily[key].append({"id": m["id"], "title": m["title"], "date": m["created_at"]})
     calendar = []
     d = cal_start
     while d <= now:
         key = d.strftime("%Y-%m-%d")
-        calendar.append({"date": key, "count": daily.get(key, 0)})
+        cal_items = daily.get(key, [])
+        calendar.append({"date": key, "count": len(cal_items), "items": cal_items})
         d += timedelta(days=1)
 
     peak = max(hours.items(), key=lambda x: x[1])[0] if hours else None
-    hour_dist = [{"label": f"{h}", "count": hours.get(h, 0)} for h in range(24)]
     return {
-        "hour_dist": hour_dist,
         "range": rng,
         "totals": {
             "count": len(ms),

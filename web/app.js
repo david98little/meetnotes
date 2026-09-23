@@ -519,6 +519,33 @@ function startPoll(fn,ms){ stopPoll(); pollTimer=setInterval(fn,ms) }
 function stopPoll(){ if(pollTimer){clearInterval(pollTimer);pollTimer=null} }
 
 
+/* ---------- 图表浮层 ---------- */
+function closeChartPop(){
+  document.getElementById('chartPop')?.remove();
+  document.removeEventListener('click', closeChartPopOnce, true);
+}
+function closeChartPopOnce(e){
+  if(!e.target.closest('#chartPop')) closeChartPop();
+}
+function showChartPop(e, items, label){
+  closeChartPop();
+  const pop=document.createElement('div'); pop.id='chartPop';
+  pop.innerHTML=`<div class="cp-head">📁 ${esc(label||'会议')} · ${items.length} 场</div>`+
+    (items.length? items.map(m=>`
+      <div class="cp-item" data-id="${m.id}">
+        <span class="cp-title">${esc(m.title)}</span><span class="cp-date">${esc((m.date||'').slice(5,16))}</span>
+      </div>`).join('') : '<div class="cp-empty">该时段无会议</div>');
+  document.body.appendChild(pop);
+  const r=pop.getBoundingClientRect();
+  let x=e.clientX+14, y=e.clientY+10;
+  if(x+r.width>innerWidth-10) x=Math.max(10, e.clientX-r.width-14);
+  if(y+r.height>innerHeight-10) y=Math.max(10, innerHeight-r.height-12);
+  pop.style.left=x+'px'; pop.style.top=y+'px';
+  pop.querySelectorAll('.cp-item').forEach(el=>el.onclick=()=>{
+    location.hash='#/m/'+el.dataset.id; closeChartPop(); });
+  setTimeout(()=>document.addEventListener('click', closeChartPopOnce, true), 0);
+}
+
 /* ---------- 看板 ---------- */
 let statsRange='all';
 async function renderStats(){
@@ -548,24 +575,15 @@ async function renderStats(){
   ];
   const maxT=Math.max(...s.trend.map(x=>x.count),1);
   const trendHtml = s.trend.length? `<div class="trend-chart">${s.trend.map(x=>`
-      <div class="trend-col" title="${esc(x.label)}：${x.count} 场">
+      <div class="trend-col" title="${esc(x.label)}：${x.count} 场（点击查看会议）" data-items='${esc(JSON.stringify(x.items))}' data-label="${esc(x.label)}">
         <div class="trend-bar" style="height:${Math.max(4, x.count/maxT*100)}%"></div>
         <div class="trend-label">${esc(x.label)}</div>
         <div class="trend-num">${x.count||''}</div>
       </div>`).join('')}</div>`
     : `<div class="empty">该范围内暂无会议</div>`;
-  const hourDist=s.hour_dist||[];
-  const maxH=Math.max(...hourDist.map(x=>x.count),1);
-  const hourHtml = hourDist.length? `<div class="trend-chart">${hourDist.map(x=>`
-      <div class="trend-col" title="${x.label}：${x.count} 场">
-        <div class="trend-bar" style="height:${Math.max(4, x.count/maxH*100)}%"></div>
-        <div class="trend-label">${x.label}</div>
-        <div class="trend-num">${x.count||''}</div>
-      </div>`).join('')}</div>`
-    : `<div class="empty">该范围内暂无会议</div>`;
   const maxP=Math.max(...s.projects.map(p=>p.count),1);
   const projHtml = s.projects.length? s.projects.map(p=>`
-      <div class="proj-bar-row">
+      <div class="proj-bar-row clickable" data-items='${esc(JSON.stringify(p.items))}' data-label="${esc(p.name)}">
         <span class="pb-name">${esc(p.name)}</span>
         <div class="pb-track"><div class="pb-fill" style="width:${p.count/maxP*100}%"></div></div>
         <span class="pb-num">${p.count} 场 · ${Math.round((p.duration||0)/60)}min</span>
@@ -576,21 +594,26 @@ async function renderStats(){
   for(let i=0;i<s.calendar.length;i+=7) weeks.push(s.calendar.slice(i,i+7));
   const heatHtml=`<div class="heat-wrap"><div class="heat-grid">${
     weeks.map(w=>`<div class="heat-week">${w.map(d=>
-      `<div class="heat-cell lv${lv(d.count)}" title="${d.date}：${d.count} 场"></div>`).join('')}</div>`).join('')
+      `<div class="heat-cell lv${lv(d.count)}${d.count?' clickable':''}" title="${d.date}：${d.count} 场${d.count?'（点击查看会议）':''}"${d.count?` data-items='${esc(JSON.stringify(d.items))}' data-label="${d.date}"`:''}></div>`).join('')}</div>`).join('')
   }</div><div class="heat-legend">少 <span class="heat-cell lv0"></span><span class="heat-cell lv1"></span><span class="heat-cell lv2"></span><span class="heat-cell lv3"></span><span class="heat-cell lv4"></span> 多（近一年）</div></div>`;
 
+  const bindPops=()=>{
+    document.querySelectorAll('#statsBody [data-items]').forEach(el=>{
+      el.onclick=e=>{ e.stopPropagation();
+        showChartPop(e, JSON.parse(el.dataset.items||'[]'), el.dataset.label); };
+    });
+  };
   document.getElementById('statsBody').innerHTML=`
     <div class="stat-cards">${cards.map(([ic,name,val,unit])=>`
       <div class="stat-card"><div class="sc-icon">${ic}</div>
         <div class="sc-val">${val}<span class="sc-unit">${unit}</span></div>
         <div class="sc-name">${name}</div></div>`).join('')}</div>
     <div class="stat-fun">💡 ${esc(fun)}</div>
-    <div class="stat-card-lg"><h3>📈 会议数量趋势</h3>${trendHtml}</div>
-    <div class="stat-grid2">
-      <div class="stat-card-lg"><h3>🗂️ 项目分布</h3>${projHtml}</div>
-      <div class="stat-card-lg"><h3>🕐 时段分布</h3>${hourHtml}</div>
-    </div>
+    <div class="stat-card-lg"><h3>📈 会议数量趋势（点击柱子查看会议）</h3>${trendHtml}</div>
+    <div class="stat-card-lg"><h3>🗂️ 项目分布</h3>${projHtml}</div>
     <div class="stat-card-lg"><h3>📅 会议日历</h3>${heatHtml}</div>`;
+  bindPops();
+
 }
 
 window.addEventListener('hashchange',route);
