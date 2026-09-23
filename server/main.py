@@ -5,9 +5,9 @@ import os
 import re
 import shutil
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 
-from fastapi import Body, FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import Body, FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -87,6 +87,110 @@ async def upload_meeting(file: UploadFile = File(...), title: str = Form(""), pr
 @app.get("/api/meetings")
 def list_meetings():
     return db.list_meetings()
+
+
+@app.get("/api/stats")
+def get_stats(rng: str = Query("all", alias="range")):
+    """会议看板聚合数据。range: all|year|month|week|day"""
+    now = datetime.now()
+    starts = {
+        "day": now.replace(hour=0, minute=0, second=0, microsecond=0),
+        "week": (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0),
+        "month": now.replace(day=1, hour=0, minute=0, second=0, microsecond=0),
+        "year": now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0),
+    }
+    start = starts.get(rng)
+
+    def _dt(m):
+        try:
+            return datetime.strptime(m["created_at"], "%Y-%m-%d %H:%M")
+        except Exception:
+            return None
+
+    ms = [m for m in db.list_meetings() if (not start) or ((_dt(m) or now) >= start)]
+
+    # 汇总
+    total_dur = sum(m.get("duration") or 0 for m in ms)
+    done = sum(1 for m in ms if m["status"] == "done")
+    chars, todos = 0, 0
+    con = db.connect()
+    for m in ms:
+        r = con.execute("SELECT COALESCE(SUM(LENGTH(text)),0) AS n FROM segments WHERE meeting_id=?", (m["id"],)).fetchone()
+        chars += r["n"]
+        art = con.execute("SELECT content FROM artifacts WHERE meeting_id=? AND kind='summary'", (m["id"],)).fetchone()
+        if art:
+            todos += len(re.findall(r"-\s*\[\s\]\s*\*\*", art["content"]))
+    con.close()
+
+    # 趋势分桶
+    def bucket(dt):
+        if rng in ("all", "year"):
+            return dt.strftime("%Y-%m")
+        if rng == "month":
+            return dt.strftime("%m-%d")
+        if rng == "week":
+            return ["周一","周二","周三","周四","周五","周六","周日"][dt.weekday()]
+        return f"{dt.hour}时"
+
+    trend, hours = {}, {}
+    for m in ms:
+        dt = _dt(m)
+        if not dt:
+            continue
+        trend[bucket(dt)] = trend.get(bucket(dt), 0) + 1
+        hours[dt.hour] = hours.get(dt.hour, 0) + 1
+    order = None
+    if rng in ("all", "year"):
+        order = sorted(trend)
+    elif rng == "month":
+        order = [(now - timedelta(days=i)).strftime("%m-%d") for i in range(min(31, now.day))] [::-1]
+    elif rng == "week":
+        order = ["周一","周二","周三","周四","周五","周六","周日"]
+    else:
+        order = [f"{h}时" for h in range(24)]
+    trend_list = [{"label": k, "count": trend.get(k, 0)} for k in order if k in trend or range in ("all","year","week","month")]
+
+    # 项目分布
+    proj = {}
+    for m in ms:
+        p = m.get("project") or ""
+        d = proj.setdefault(p, {"name": p or "未分组", "count": 0, "duration": 0})
+        d["count"] += 1
+        d["duration"] += m.get("duration") or 0
+    projects = sorted(proj.values(), key=lambda x: -x["count"])[:8]
+
+    # 日历热力图（固定近 365 天，不受 range 影响）
+    cal_start = (now - timedelta(days=364))
+    cal_start -= timedelta(days=cal_start.weekday())
+    daily = {}
+    all_ms = db.list_meetings()
+    for m in all_ms:
+        dt = _dt(m)
+        if dt and dt >= cal_start:
+            daily[dt.strftime("%Y-%m-%d")] = daily.get(dt.strftime("%Y-%m-%d"), 0) + 1
+    calendar = []
+    d = cal_start
+    while d <= now:
+        key = d.strftime("%Y-%m-%d")
+        calendar.append({"date": key, "count": daily.get(key, 0)})
+        d += timedelta(days=1)
+
+    peak = max(hours.items(), key=lambda x: x[1])[0] if hours else None
+    return {
+        "range": rng,
+        "totals": {
+            "count": len(ms),
+            "duration_sec": round(total_dur),
+            "chars": chars,
+            "todos": todos,
+            "done": done,
+            "done_rate": round(done * 100 / len(ms)) if ms else 0,
+        },
+        "trend": trend_list,
+        "projects": projects,
+        "calendar": calendar,
+        "peak_hour": peak,
+    }
 
 
 @app.get("/api/projects")

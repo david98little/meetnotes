@@ -518,11 +518,77 @@ async function openSettings(){
 function startPoll(fn,ms){ stopPoll(); pollTimer=setInterval(fn,ms) }
 function stopPoll(){ if(pollTimer){clearInterval(pollTimer);pollTimer=null} }
 
+
+/* ---------- 看板 ---------- */
+let statsRange='all';
+async function renderStats(){
+  setNav('stats'); stopPoll();
+  const R=[['all','全部'],['year','今年'],['month','本月'],['week','本周'],['day','今日']];
+  $app.innerHTML=`
+    <div class="stats-head">
+      <a href="#/" class="back-link">← 返回</a>
+      <div class="range-tabs">${R.map(([v,l])=>
+        `<button class="range-tab ${statsRange===v?'active':''}" data-r="${v}">${l}</button>`).join('')}</div>
+    </div>
+    <div id="statsBody"><div class="empty">统计中…</div></div>`;
+  $app.querySelectorAll('.range-tab').forEach(b=>b.onclick=()=>{ statsRange=b.dataset.r; renderStats() });
+  const s=await api(`/api/stats?range=${statsRange}`);
+  const t=s.totals;
+  const hours=(t.duration_sec/3600);
+  const fun = t.count===0 ? '这段时间还没有会议，传一段录音试试'
+    : hours>=1 ? `这些会议加起来聊了 ${hours.toFixed(1)} 小时 ≈ ${(hours/2).toFixed(1)} 部电影的时长`
+    : `这些会议共 ${Math.round(t.duration_sec/60)} 分钟，比一部短片还紧凑`;
+  const cards=[
+    ['🗣️','会议场数', t.count, '场'],
+    ['⏱️','总时长', t.duration_sec>=3600?hours.toFixed(1):Math.round(t.duration_sec/60), t.duration_sec>=3600?'小时':'分钟'],
+    ['✅','已完成', `${t.done} / ${t.done_rate}%`, ''],
+    ['📝','转写字数', t.chars>=10000?(t.chars/10000).toFixed(1)+'万':t.chars, '字'],
+    ['🎯','待办事项', t.todos, '项'],
+    [s.peak_hour!=null?'🕐':'🕐', '最常开会', s.peak_hour!=null?`${s.peak_hour} 点`:'—', s.peak_hour!=null?'时段':''],
+  ];
+  const maxT=Math.max(...s.trend.map(x=>x.count),1);
+  const trendHtml = s.trend.length? `<div class="trend-chart">${s.trend.map(x=>`
+      <div class="trend-col" title="${esc(x.label)}：${x.count} 场">
+        <div class="trend-bar" style="height:${Math.max(4, x.count/maxT*100)}%"></div>
+        <div class="trend-label">${esc(x.label)}</div>
+        <div class="trend-num">${x.count||''}</div>
+      </div>`).join('')}</div>`
+    : `<div class="empty">该范围内暂无会议</div>`;
+  const maxP=Math.max(...s.projects.map(p=>p.count),1);
+  const projHtml = s.projects.length? s.projects.map(p=>`
+      <div class="proj-bar-row">
+        <span class="pb-name">${esc(p.name)}</span>
+        <div class="pb-track"><div class="pb-fill" style="width:${p.count/maxP*100}%"></div></div>
+        <span class="pb-num">${p.count} 场 · ${Math.round((p.duration||0)/60)}min</span>
+      </div>`).join('') : `<div class="empty">暂无项目</div>`;
+  // 热力图
+  const lv=c=>c===0?0:c===1?1:c<=2?2:c<=4?3:4;
+  const weeks=[];
+  for(let i=0;i<s.calendar.length;i+=7) weeks.push(s.calendar.slice(i,i+7));
+  const heatHtml=`<div class="heat-wrap"><div class="heat-grid">${
+    weeks.map(w=>`<div class="heat-week">${w.map(d=>
+      `<div class="heat-cell lv${lv(d.count)}" title="${d.date}：${d.count} 场"></div>`).join('')}</div>`).join('')
+  }</div><div class="heat-legend">少 <span class="heat-cell lv0"></span><span class="heat-cell lv1"></span><span class="heat-cell lv2"></span><span class="heat-cell lv3"></span><span class="heat-cell lv4"></span> 多（近一年）</div></div>`;
+
+  document.getElementById('statsBody').innerHTML=`
+    <div class="stat-cards">${cards.map(([ic,name,val,unit])=>`
+      <div class="stat-card"><div class="sc-icon">${ic}</div>
+        <div class="sc-val">${val}<span class="sc-unit">${unit}</span></div>
+        <div class="sc-name">${name}</div></div>`).join('')}</div>
+    <div class="stat-fun">💡 ${esc(fun)}</div>
+    <div class="stat-card-lg"><h3>📈 会议数量趋势</h3>${trendHtml}</div>
+    <div class="stat-grid2">
+      <div class="stat-card-lg"><h3>🗂️ 项目分布</h3>${projHtml}</div>
+      <div class="stat-card-lg"><h3>📅 会议日历</h3>${heatHtml}</div>
+    </div>`;
+}
+
 window.addEventListener('hashchange',route);
 document.getElementById('navSettings')?.addEventListener('click', openSettings);
 async function route(){
   const h=location.hash;
   if(h.startsWith('#/m/')) await renderDetail(h.slice(4));
+  else if(h==='#/stats') await renderStats();
   else await renderList();
 }
 route();
