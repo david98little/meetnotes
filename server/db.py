@@ -1,3 +1,4 @@
+import json
 import sqlite3
 from datetime import datetime
 
@@ -61,11 +62,12 @@ def now():
 
 # ---------- meetings ----------
 
-def create_meeting(mid, title, created, project=""):
+def create_meeting(mid, title, created, project="", meta=None):
     with connect() as con:
         con.execute(
-            "INSERT INTO meetings(id,title,status,step,project,created_at) VALUES(?,?,?,?,?,?)",
-            (mid, title, "queued", "uploaded", (project or "")[:40], created),
+            "INSERT INTO meetings(id,title,status,step,project,meta,created_at) VALUES(?,?,?,?,?,?,?)",
+            (mid, title, "queued", "uploaded", (project or "")[:40],
+             json.dumps(meta or {}, ensure_ascii=False), created),
         )
 
 

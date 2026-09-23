@@ -90,9 +90,11 @@ def _normalize(mid):
                  "-c:a", "copy", _part_path(mid, idx)],
                 check=True, capture_output=True,
             )
+    merged = _load_meta(mid)
+    merged["chunks"] = chunks
     db.update_meeting(
         mid, duration=round(duration, 2), audio_file=f"{mid}.mp3",
-        meta=json.dumps({"chunks": chunks}, ensure_ascii=False),
+        meta=json.dumps(merged, ensure_ascii=False),
     )
 
 
@@ -151,16 +153,35 @@ def _summarize(mid):
         "你是一名会议纪要助手，严格按要求输出 JSON。",
         PROMPT_SUMMARY.format(hint=build_context_hint(), doc=_base_doc(mid)))
     md = None
+    data = None
     match = re.search(r"\{.*\}", raw, re.S)
     if match:
         try:
-            md = summary_json_to_md(json.loads(match.group()))
+            data = json.loads(match.group())
+            md = summary_json_to_md(data)
         except Exception:
             md = None
     if md is None:
         md = SUMMARY_FALLBACK_MD.format(raw=raw.strip()[:3000])
     db.upsert_artifact(mid, "summary", md)
+    _auto_title(mid, data)
     db.update_meeting(mid, status="done", step="summary_done", error=None)
+
+
+def _auto_title(mid, data):
+    """AI 根据内容归纳会议名（≤20字）。用户手动命名过的（meta.title_source=user）不覆盖。"""
+    if not data or not (data.get("meeting_title") or "").strip():
+        return
+    m = db.get_meeting(mid)
+    try:
+        meta = json.loads(m.get("meta") or "{}")
+    except Exception:
+        meta = {}
+    if meta.get("title_source") == "user":
+        return
+    title = str(data["meeting_title"]).strip()[:20]
+    if title and title != m["title"]:
+        db.update_meeting(mid, title=title)
 
 
 def cleanup_parts(mid):

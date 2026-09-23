@@ -73,8 +73,13 @@ async def upload_meeting(file: UploadFile = File(...), title: str = Form(""), pr
     if get_config()["transcriber"] == "ark" and not get_config().get("asr", {}).get("api_key"):
         raise HTTPException(400, "尚未配置方舟 API Key，请先到设置填写")
     mid, path = _save_upload(file)
-    title = (title or "").strip() or os.path.splitext(file.filename)[0][:60]
-    db.create_meeting(mid, title, datetime.now().strftime("%Y-%m-%d %H:%M"), project)
+    user_title = (title or "").strip()
+    if user_title:
+        title, source = user_title[:60], "user"
+    else:
+        title, source = os.path.splitext(file.filename)[0][:60], "filename"
+    db.create_meeting(mid, title, datetime.now().strftime("%Y-%m-%d %H:%M"), project,
+                      meta={"title_source": source})
     submit_new(mid)
     return {"id": mid}
 
@@ -131,6 +136,14 @@ def rename_meeting(mid: str, body: dict = Body(...)):
         updates["project"] = (str(body.get("project") or "")).strip()[:40]
     if not updates:
         raise HTTPException(400, "无可更新字段")
+    if "title" in updates:  # 手动改名后，AI 不再自动覆盖标题
+        m = db.get_meeting(mid)
+        try:
+            meta = json.loads(m.get("meta") or "{}")
+        except Exception:
+            meta = {}
+        meta["title_source"] = "user"
+        db.update_meeting(mid, meta=json.dumps(meta, ensure_ascii=False))
     db.update_meeting(mid, **updates)
     return {"ok": True, **updates}
 

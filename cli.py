@@ -64,10 +64,14 @@ def cmd_transcribe(args):
         die(f"不支持的音频格式 {ext}，可选: {', '.join(sorted(ALLOWED_EXT))}")
 
     mid = uuid.uuid4().hex[:12]
-    title = (args.title or os.path.splitext(os.path.basename(src))[0])[:80]
+    if args.title and args.title.strip():
+        title, source = args.title.strip()[:80], "user"
+    else:
+        title, source = os.path.splitext(os.path.basename(src))[0][:80], "filename"
     dst = os.path.join(AUDIO_DIR, f"{mid}_orig{ext}")
     shutil.copyfile(src, dst)
-    db.create_meeting(mid, title, datetime.now().strftime("%Y-%m-%d %H:%M"))
+    db.create_meeting(mid, title, datetime.now().strftime("%Y-%m-%d %H:%M"),
+                      meta={"title_source": source})
 
     steps = [("预处理音频", pipeline._normalize),
              ("语音转写", pipeline._transcribe),
