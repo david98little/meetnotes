@@ -299,3 +299,21 @@ nav a.active{color:var(--green-d);border-color:var(--green)}
 .dd-item.dropped{animation:dropPulse .35s ease}
 .dd-item.dropped .dd-icon{font-size:1.9rem;transform:scale(.85)}
 @keyframes dropPulse{0%{transform:scale(1.07)}50%{transform:scale(.92)}100%{transform:scale(1)}}
+
+/* ---------- 平铺网格视图（资源管理器风格） ---------- */
+.tile-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:14px}
+.tile{position:relative;background:var(--card);border:1px solid var(--line);border-radius:14px;
+  padding:18px 12px 12px;text-align:center;cursor:grab;transition:all .15s ease;
+  display:flex;flex-direction:column;align-items:center;gap:6px}
+.tile:hover{border-color:var(--green);box-shadow:0 6px 20px rgba(5,150,105,.14);
+  transform:translateY(-3px)}
+.tile[draggable="true"]:active{cursor:grabbing;opacity:.75;transform:none}
+.tile-icon{font-size:2.4rem;line-height:1.2;filter:drop-shadow(0 3px 4px rgba(0,0,0,.14))}
+.tile-name{font-size:.88rem;font-weight:600;line-height:1.35;word-break:break-all;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.6em}
+.tile-meta{font-size:.74rem;color:var(--ink3)}
+.tile .badge{font-size:.72rem}
+.tile-del{position:absolute;top:7px;right:7px;border:none;background:#f1f5f4;width:22px;height:22px;
+  border-radius:7px;cursor:pointer;font-size:.72rem;color:var(--ink3);display:none;align-items:center;justify-content:center}
+.tile:hover .tile-del{display:flex}
+.tile-del:hover{background:#fee2e2;color:var(--red)}

@@ -96,6 +96,29 @@ async function refreshList(poll=false){
     const named=Object.keys(groups).filter(k=>k).sort((a,b)=>{
       const ca=groups[a].length, cb=groups[b].length; return cb-ca||a.localeCompare(b) });
     if(!list.length) el.innerHTML=`<div class="empty">还没有会议记录，上传一段录音开始吧</div>`;
+    const statusIcon=s=>s==='done'?'🎙️':s==='processing'?'⏳':s==='failed'?'⚠️':'🕓';
+    const drawTiles=(rows)=>{
+      let grid=document.createElement('div'); grid.className='tile-grid';
+      for(const m of rows){
+        const d=document.createElement('div'); d.className='tile'; d.draggable=true; d.title=m.title;
+        d.ondragstart=e=>{
+          e.dataTransfer.setData('text/meetid', m.id); e.dataTransfer.effectAllowed='move';
+          showDropDock(); };
+        d.ondragend=()=>hideDropDock();
+        d.innerHTML=`
+          <button class="tile-del" title="删除">✕</button>
+          <div class="tile-icon">${statusIcon(m.status)}</div>
+          <div class="tile-name">${esc(m.title)}</div>
+          <div class="tile-meta">${esc((m.created_at||'').slice(5,10))}${m.duration?` · ${fmtDur(m.duration)}`:''}${m.project?` · 📁${esc(m.project)}`:''}</div>
+          ${badgeHtml(m)}`;
+        d.onclick=()=>location.hash=`#/m/${m.id}`;
+        d.querySelector('.tile-del').onclick=async e=>{ e.stopPropagation();
+          if(confirm(`删除会议「${m.title}」？音频和纪要将一并删除`)){
+            await api(`/api/meetings/${m.id}`,{method:'DELETE'}); refreshList(); }};
+        grid.appendChild(d);
+      }
+      el.appendChild(grid);
+    };
     const drawRows=(rows)=>{
       for(const m of rows){
         const d=document.createElement('div'); d.className='mrow'; d.draggable=true;
@@ -174,7 +197,7 @@ async function refreshList(poll=false){
         let rows=list;
         if(curProjectFilter==='__none__') rows=groups['']||[];
         else if(curProjectFilter) rows=groups[curProjectFilter]||[];
-        drawRows(rows);
+        drawTiles(rows);
       }
       else if(curProjectFilter==='__none__'){ if(groups['']) drawGroup('', groups['']) }
       else if(curProjectFilter){ if(groups[curProjectFilter]) drawGroup(curProjectFilter, groups[curProjectFilter]) }
