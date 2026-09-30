@@ -140,7 +140,7 @@ def _polish(mid):
     db.update_meeting(mid, status="processing", step="polishing", error=None)
     doc = ArkClient().chat_text(
         "你是一名专业的会议记录员，输出整洁、忠实、不编造。",
-        PROMPT_POLISH.format(hint=build_context_hint(),
+        PROMPT_POLISH.format(hint=build_context_hint(mid),
                              transcript=_fmt_transcript(db.list_segments(mid))),
     )
     db.upsert_artifact(mid, "polished", doc)
@@ -151,7 +151,7 @@ def _summarize(mid):
     db.update_meeting(mid, status="processing", step="summarizing", error=None)
     raw = ArkClient().chat_text(
         "你是一名会议纪要助手，严格按要求输出 JSON。",
-        PROMPT_SUMMARY.format(hint=build_context_hint(), doc=_base_doc(mid)))
+        PROMPT_SUMMARY.format(hint=build_context_hint(mid), doc=_base_doc(mid)))
     md = None
     data = None
     match = re.search(r"\{.*\}", raw, re.S)

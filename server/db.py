@@ -23,6 +23,10 @@ def init(db_path):
           project TEXT NOT NULL DEFAULT '',
           created_at TEXT NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS projects(
+          name TEXT PRIMARY KEY,
+          keywords TEXT NOT NULL DEFAULT ''
+        );
         CREATE TABLE IF NOT EXISTS segments(
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           meeting_id TEXT NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
@@ -45,6 +49,7 @@ def init(db_path):
     cols = [r[1] for r in con.execute("PRAGMA table_info(meetings)").fetchall()]
     if "project" not in cols:
         con.execute("ALTER TABLE meetings ADD COLUMN project TEXT NOT NULL DEFAULT ''")
+    con.execute("CREATE TABLE IF NOT EXISTS projects(name TEXT PRIMARY KEY, keywords TEXT NOT NULL DEFAULT '')")
     con.commit()
     con.close()
 
@@ -108,13 +113,35 @@ def rename_project(old, new):
     new = (new or "").strip()[:40]
     with connect() as con:
         con.execute("UPDATE meetings SET project=? WHERE project=?", (new, old))
+    rename_project_row(old, new)
     return new
 
 
 def dissolve_project(name):
-    """解散分组：会议保留，project 置空"""
+    """解散分组：会议保留，project 置空，项目属性清理"""
     with connect() as con:
         con.execute("UPDATE meetings SET project='' WHERE project=?", (name,))
+        con.execute("DELETE FROM projects WHERE name=?", (name,))
+
+
+def get_project_keywords(name):
+    with connect() as con:
+        row = con.execute("SELECT keywords FROM projects WHERE name=?", (name,)).fetchone()
+        return row["keywords"] if row else ""
+
+
+def set_project_keywords(name, keywords):
+    with connect() as con:
+        con.execute(
+            "INSERT INTO projects(name,keywords) VALUES(?,?) "
+            "ON CONFLICT(name) DO UPDATE SET keywords=excluded.keywords",
+            (name, (keywords or "")[:2000]),
+        )
+
+
+def rename_project_row(old, new):
+    with connect() as con:
+        con.execute("UPDATE projects SET name=? WHERE name=?", (new, old))
 
 
 def delete_meeting(mid):

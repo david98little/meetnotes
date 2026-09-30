@@ -84,14 +84,24 @@ class WhisperLocal:
         return [(s.start, s.end, s.text.strip()) for s in segments if s.text.strip()]
 
 
-def build_context_hint() -> str:
-    """热词 + 参会人提示，注入所有 LLM 调用"""
+def build_context_hint(mid=None) -> str:
+    """热词 + 参会人提示，注入所有 LLM 调用。mid 存在时叠加所属项目的专属关键词。"""
     cfg = get_config()
     parts = []
     if cfg.get("attendees"):
         parts.append(f"本次参会人：{cfg['attendees']}")
     if cfg.get("hotwords"):
-        parts.append(f"术语/专名表（转写中出现的近似词请修正为这些写法）：{cfg['hotwords']}")
+        parts.append(f"通用术语/专名表（转写中出现的近似词请修正为这些写法）：{cfg['hotwords']}")
+    if mid:
+        from . import db
+        m = db.get_meeting(mid)
+        pname = (m or {}).get("project") or ""
+        if pname:
+            kws = db.get_project_keywords(pname)
+            if kws.strip():
+                parts.append(
+                    f"项目「{pname}」专属关键词（本会议属于该项目，文稿中的专有名词、"
+                    f"系统名、项目名必须与此处的写法完全一致）：{kws.strip()}")
     return "\n".join(parts)
 
 

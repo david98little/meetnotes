@@ -215,6 +215,18 @@ def rename_project(name: str, body: dict = Body(...)):
     return {"ok": True, "name": new}
 
 
+@app.get("/api/projects/{name}/keywords")
+def get_project_keywords(name: str):
+    return {"name": name, "keywords": db.get_project_keywords(name)}
+
+
+@app.patch("/api/projects/{name}/keywords")
+def set_project_keywords(name: str, body: dict = Body(...)):
+    kws = str(body.get("keywords") or "").strip()[:2000]
+    db.set_project_keywords(name, kws)
+    return {"ok": True, "keywords": kws}
+
+
 @app.delete("/api/projects/{name}")
 def dissolve_project(name: str):
     db.dissolve_project(name)

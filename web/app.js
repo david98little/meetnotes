@@ -114,6 +114,7 @@ async function refreshList(poll=false){
           <span class="proj-name">📁 ${esc(name||'未分组')}</span>
           <span class="proj-count">${rows.length} 场</span>
           ${name?`<span class="proj-ops">
+            <button class="proj-btn" data-op="keywords" title="项目关键词（提升整理稿/摘要专名准确性）">🔑</button>
             <button class="proj-btn" data-op="rename" title="重命名项目">✏️</button>
             <button class="proj-btn" data-op="dissolve" title="解散分组（会议保留）">✕</button></span>`:''}
         </div>`;
@@ -126,6 +127,8 @@ async function refreshList(poll=false){
         setFolded(arr); renderList();
       };
       if(name){
+        g.querySelector('[data-op=keywords]').onclick=async e=>{ e.stopPropagation();
+          openKeywordsModal(name); };
         g.querySelector('[data-op=rename]').onclick=async e=>{ e.stopPropagation();
           const nn=prompt('新项目名称：', name); if(!nn||nn.trim()===name) return;
           await api(`/api/projects/${encodeURIComponent(name)}`,{method:'PATCH',
@@ -442,6 +445,28 @@ function ensureModal(){
   mask.onclick=e=>{ if(e.target===mask) closeSettings() };
   document.body.appendChild(mask);
 }
+async function openKeywordsModal(name){
+  ensureModal();
+  const card=document.getElementById('modalCard');
+  card.innerHTML=`<div class="modal-head"><h2>🔑 项目关键词 · ${esc(name)}</h2>
+    <button class="modal-close" id="modalClose">✕</button></div>
+    <div class="modal-body">
+      <p class="set-desc">每行一个关键词。保存后<b>重跑「文稿整理」</b>即可应用到该项目的会议，无需重新转录。</p>
+      <div class="field"><textarea id="kwArea" rows="9" placeholder="例：&#10;渝城绿芯&#10;智慧园林监管平台&#10;S3 数据同步" style="width:100%">${esc((await api('/api/projects/'+encodeURIComponent(name)+'/keywords')).keywords||'')}</textarea></div>
+      <div class="action-bar"><button class="btn primary" id="kwSave">保存关键词</button></div>
+    </div>`;
+  document.getElementById('modalClose').onclick=closeSettings;
+  document.addEventListener('keydown', escSettings);
+  document.getElementById('kwSave').onclick=async()=>{
+    try{
+      await api(`/api/projects/${encodeURIComponent(name)}/keywords`,{method:'PATCH',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({keywords:document.getElementById('kwArea').value})});
+      toast('✅ 项目关键词已保存，重跑「文稿整理」后生效'); closeSettings();
+    }catch(e){ alert('保存失败：'+e.message) }
+  };
+}
+
 function closeSettings(){
   document.getElementById('modalMask')?.remove();
   document.removeEventListener('keydown', escSettings);
