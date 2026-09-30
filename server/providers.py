@@ -84,6 +84,25 @@ class WhisperLocal:
         return [(s.start, s.end, s.text.strip()) for s in segments if s.text.strip()]
 
 
+def _parse_kws(text: str):
+    """项目关键词行解析：错→对 / 错=对 / 错->对 为映射，其余为普通词条"""
+    mappings, terms = [], []
+    for line in (text or "").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        for sep in ("→", "->", "＝", "="):
+            if sep in line:
+                wrong, right = line.split(sep, 1)
+                wrong, right = wrong.strip(), right.strip()
+                if wrong and right:
+                    mappings.append((wrong, right))
+                break
+        else:
+            terms.append(line)
+    return mappings, terms
+
+
 def build_context_hint(mid=None) -> str:
     """热词 + 参会人提示，注入所有 LLM 调用。mid 存在时叠加所属项目的专属关键词。"""
     cfg = get_config()
@@ -97,11 +116,15 @@ def build_context_hint(mid=None) -> str:
         m = db.get_meeting(mid)
         pname = (m or {}).get("project") or ""
         if pname:
-            kws = db.get_project_keywords(pname)
-            if kws.strip():
+            mappings, terms = _parse_kws(db.get_project_keywords(pname))
+            if mappings:
+                mw = "；".join(f"「{w}」应写作「{r}」" for w, r in mappings)
+                parts.append(
+                    f"项目「{pname}」已知转写错误修正（文稿中出现左边的词时必须改写为右边的正确写法）：{mw}")
+            if terms:
                 parts.append(
                     f"项目「{pname}」专属关键词（本会议属于该项目，文稿中的专有名词、"
-                    f"系统名、项目名必须与此处的写法完全一致）：{kws.strip()}")
+                    f"系统名、项目名必须与此处的写法完全一致）：{'、'.join(terms)}")
     return "\n".join(parts)
 
 

@@ -451,8 +451,8 @@ async function openKeywordsModal(name){
   card.innerHTML=`<div class="modal-head"><h2>🔑 项目关键词 · ${esc(name)}</h2>
     <button class="modal-close" id="modalClose">✕</button></div>
     <div class="modal-body">
-      <p class="set-desc">每行一个关键词。保存后<b>重跑「文稿整理」</b>即可应用到该项目的会议，无需重新转录。</p>
-      <div class="field"><textarea id="kwArea" rows="9" placeholder="例：&#10;渝城绿芯&#10;智慧园林监管平台&#10;S3 数据同步" style="width:100%">${esc((await api('/api/projects/'+encodeURIComponent(name)+'/keywords')).keywords||'')}</textarea></div>
+      <p class="set-desc">每行一条：<b>纯词条</b>（渝城绿芯）约束专名写法；<b>映射</b>（张老师→张鸿韦 或 数据大频=数据大屏）强制把转写错词改写为正确写法。保存后<b>重跑「文稿整理」</b>生效，无需重新转录。</p>
+      <div class="field"><textarea id="kwArea" rows="9" placeholder="例：&#10;渝城绿芯&#10;智慧园林监管平台&#10;张老师→张鸿韦&#10;数据大频=数据大屏" style="width:100%">${esc((await api('/api/projects/'+encodeURIComponent(name)+'/keywords')).keywords||'')}</textarea></div>
       <div class="action-bar"><button class="btn primary" id="kwSave">保存关键词</button></div>
     </div>`;
   document.getElementById('modalClose').onclick=closeSettings;
