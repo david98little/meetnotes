@@ -317,3 +317,14 @@ nav a.active{color:var(--green-d);border-color:var(--green)}
   border-radius:7px;cursor:pointer;font-size:.72rem;color:var(--ink3);display:none;align-items:center;justify-content:center}
 .tile:hover .tile-del{display:flex}
 .tile-del:hover{background:#fee2e2;color:var(--red)}
+
+/* ---------- 更新日志 ---------- */
+.changelog-body{padding:10px 26px 24px}
+.cl-release{padding:16px 0;border-bottom:1px dashed var(--line)}
+.cl-release:last-child{border-bottom:none}
+.cl-head{display:flex;align-items:baseline;gap:12px;margin-bottom:10px}
+.cl-ver{font-size:1.05rem;font-weight:700;color:var(--green-d)}
+.cl-date{font-size:.8rem;color:var(--ink3)}
+.cl-item{display:flex;align-items:flex-start;gap:10px;margin-bottom:8px}
+.cl-tag{flex:0 0 auto;font-size:.72rem;font-weight:600;padding:2px 8px;border-radius:99px;margin-top:1px}
+.cl-text{font-size:.9rem;line-height:1.6;color:var(--ink)}

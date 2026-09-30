@@ -683,6 +683,27 @@ async function renderStats(){
 
 window.addEventListener('hashchange',route);
 document.getElementById('navSettings')?.addEventListener('click', openSettings);
+document.getElementById('navLog')?.addEventListener('click', openChangelog);
+
+async function openChangelog(){
+  ensureModal();
+  const card=document.getElementById('modalCard');
+  card.innerHTML=`<div class="modal-head"><h2>📜 更新日志</h2>
+    <button class="modal-close" id="modalClose">✕</button></div>
+    <div class="modal-body changelog-body">
+      ${(typeof CHANGELOG!=='undefined'?CHANGELOG:[]).map(rel=>`
+        <div class="cl-release">
+          <div class="cl-head"><span class="cl-ver">${esc(rel.version)}</span>
+            <span class="cl-date">${esc(rel.date)}</span></div>
+          <div class="cl-items">${rel.items.map(it=>{
+            const meta=TYPE_META[it.type]||['•','#666','#f5f5f5'];
+            return `<div class="cl-item"><span class="cl-tag" style="color:${meta[1]};background:${meta[2]}">${meta[0]}</span>
+              <span class="cl-text">${esc(it.text)}</span></div>`;}).join('')}</div>
+        </div>`).join('')}
+    </div>`;
+  document.getElementById('modalClose').onclick=closeSettings;
+  document.addEventListener('keydown', escSettings);
+}
 async function route(){
   const h=location.hash;
   if(h.startsWith('#/m/')) await renderDetail(h.slice(4));
