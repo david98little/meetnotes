@@ -66,13 +66,7 @@ async function renderList(){
     </div>
     <div style="text-align:center;margin:-8px 0 4px"><button class="btn-rec" id="btnRec">🎙️ 开始页面录音</button></div>
     <div class="list-head"><h2>全部会议</h2>
-      <div style="display:flex;gap:8px;align-items:center">
-        <select id="projFilter" class="proj-filter"></select>
-        <div class="view-switch">
-          <button class="vs-btn ${listView==='flat'?'active':''}" data-v="flat" title="平铺视图">📋 平铺</button>
-          <button class="vs-btn ${listView==='group'?'active':''}" data-v="group" title="分组视图">📁 分组</button>
-        </div>
-      </div></div>
+      <select id="projFilter" class="proj-filter"></select></div>
     <div class="proj-assign" id="projAssign"></div>
     <div class="meet-list" id="meetList"></div>`;
   bindUpload(); bindRec(); await refreshList(true);
@@ -84,7 +78,6 @@ async function renderList(){
 }
 
 let curProjectFilter='';   // ''=全部 | 项目名 | '__none__'
-let listView=localStorage.getItem('mn_listview')||'flat';   // flat(默认平铺) | group
 async function refreshList(poll=false){
   try{
     const list = await api('/api/meetings');
@@ -96,29 +89,6 @@ async function refreshList(poll=false){
     const named=Object.keys(groups).filter(k=>k).sort((a,b)=>{
       const ca=groups[a].length, cb=groups[b].length; return cb-ca||a.localeCompare(b) });
     if(!list.length) el.innerHTML=`<div class="empty">还没有会议记录，上传一段录音开始吧</div>`;
-    const statusIcon=s=>s==='done'?'🎙️':s==='processing'?'⏳':s==='failed'?'⚠️':'🕓';
-    const drawTiles=(rows)=>{
-      let grid=document.createElement('div'); grid.className='tile-grid';
-      for(const m of rows){
-        const d=document.createElement('div'); d.className='tile'; d.draggable=true; d.title=m.title;
-        d.ondragstart=e=>{
-          e.dataTransfer.setData('text/meetid', m.id); e.dataTransfer.effectAllowed='move';
-          showDropDock(); };
-        d.ondragend=()=>hideDropDock();
-        d.innerHTML=`
-          <button class="tile-del" title="删除">✕</button>
-          <div class="tile-icon">${statusIcon(m.status)}</div>
-          <div class="tile-name">${esc(m.title)}</div>
-          <div class="tile-meta">${esc((m.created_at||'').slice(5,10))}${m.duration?` · ${fmtDur(m.duration)}`:''}${m.project?` · 📁${esc(m.project)}`:''}</div>
-          ${badgeHtml(m)}`;
-        d.onclick=()=>location.hash=`#/m/${m.id}`;
-        d.querySelector('.tile-del').onclick=async e=>{ e.stopPropagation();
-          if(confirm(`删除会议「${m.title}」？音频和纪要将一并删除`)){
-            await api(`/api/meetings/${m.id}`,{method:'DELETE'}); refreshList(); }};
-        grid.appendChild(d);
-      }
-      el.appendChild(grid);
-    };
     const drawRows=(rows)=>{
       for(const m of rows){
         const d=document.createElement('div'); d.className='mrow'; d.draggable=true;
@@ -193,13 +163,7 @@ async function refreshList(poll=false){
         tip.textContent=`已折叠 ${rows.length} 场会议`; el.appendChild(tip); }
     };
     if(list.length){
-      if(listView==='flat'){
-        let rows=list;
-        if(curProjectFilter==='__none__') rows=groups['']||[];
-        else if(curProjectFilter) rows=groups[curProjectFilter]||[];
-        drawTiles(rows);
-      }
-      else if(curProjectFilter==='__none__'){ if(groups['']) drawGroup('', groups['']) }
+      if(curProjectFilter==='__none__'){ if(groups['']) drawGroup('', groups['']) }
       else if(curProjectFilter){ if(groups[curProjectFilter]) drawGroup(curProjectFilter, groups[curProjectFilter]) }
       else { named.forEach(n=>drawGroup(n, groups[n]));
              if(groups['']) drawGroup('', groups['']) }
@@ -211,8 +175,6 @@ async function refreshList(poll=false){
         named.map(n=>`<option value="${esc(n)}" ${curProjectFilter===n?'selected':''}>📁 ${esc(n)} (${groups[n].length})</option>`).join('')+
         (groups['']?`<option value="__none__" ${curProjectFilter==='__none__'?'selected':''}>未分组 (${groups[''].length})</option>`:'');
       sel.onchange=()=>{ curProjectFilter=sel.value; renderList() };
-      $app.querySelectorAll('.vs-btn').forEach(b=>b.onclick=()=>{
-        listView=b.dataset.v; localStorage.setItem('mn_listview', listView); renderList() });
     }
     // 上传归组选择器
     const pa=document.getElementById('projAssign');
