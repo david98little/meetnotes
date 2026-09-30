@@ -66,7 +66,13 @@ async function renderList(){
     </div>
     <div style="text-align:center;margin:-8px 0 4px"><button class="btn-rec" id="btnRec">🎙️ 开始页面录音</button></div>
     <div class="list-head"><h2>全部会议</h2>
-      <select id="projFilter" class="proj-filter"></select></div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <select id="projFilter" class="proj-filter"></select>
+        <div class="view-switch">
+          <button class="vs-btn ${listView==='flat'?'active':''}" data-v="flat" title="平铺视图">📋 平铺</button>
+          <button class="vs-btn ${listView==='group'?'active':''}" data-v="group" title="分组视图">📁 分组</button>
+        </div>
+      </div></div>
     <div class="proj-assign" id="projAssign"></div>
     <div class="meet-list" id="meetList"></div>`;
   bindUpload(); bindRec(); await refreshList(true);
@@ -78,10 +84,12 @@ async function renderList(){
 }
 
 let curProjectFilter='';   // ''=全部 | 项目名 | '__none__'
+let listView=localStorage.getItem('mn_listview')||'flat';   // flat(默认平铺) | group
 async function refreshList(poll=false){
   try{
     const list = await api('/api/meetings');
     const el = document.getElementById('meetList'); if(!el) return;
+    _dockList=list;
     const groups={};
     for(const m of list){ const p=m.project||''; (groups[p]=groups[p]||[]).push(m) }
     el.innerHTML='';
@@ -91,7 +99,10 @@ async function refreshList(poll=false){
     const drawRows=(rows)=>{
       for(const m of rows){
         const d=document.createElement('div'); d.className='mrow'; d.draggable=true;
-        d.ondragstart=e=>{ e.dataTransfer.setData('text/meetid', m.id); e.dataTransfer.effectAllowed='move'; };
+        d.ondragstart=e=>{
+          e.dataTransfer.setData('text/meetid', m.id); e.dataTransfer.effectAllowed='move';
+          showDropDock(); };
+        d.ondragend=()=>hideDropDock();
         d.innerHTML = `
         <div class="m-main"><div class="m-title">${esc(m.title)}</div>
           <div class="m-sub">${esc(m.created_at)}${m.duration?` · ${fmtDur(m.duration)}`:''}</div></div>
@@ -114,8 +125,8 @@ async function refreshList(poll=false){
           <span class="proj-name">📁 ${esc(name||'未分组')}</span>
           <span class="proj-count">${rows.length} 场</span>
           ${name?`<span class="proj-ops">
-            <button class="proj-btn" data-op="keywords" title="项目关键词（提升整理稿/摘要专名准确性）">🔑</button>
-            <button class="proj-btn" data-op="rename" title="重命名项目">✏️</button>
+            <button class="proj-btn" data-op="keywords" title="项目关键词（提升整理稿/摘要专名准确性）">🔑 关键词</button>
+            <button class="proj-btn" data-op="rename" title="重命名项目">✏️ 重命名</button>
             <button class="proj-btn" data-op="dissolve" title="解散分组（会议保留）">✕</button></span>`:''}
         </div>`;
       // 折叠/展开（点头切换）
@@ -159,7 +170,13 @@ async function refreshList(poll=false){
         tip.textContent=`已折叠 ${rows.length} 场会议`; el.appendChild(tip); }
     };
     if(list.length){
-      if(curProjectFilter==='__none__'){ if(groups['']) drawGroup('', groups['']) }
+      if(listView==='flat'){
+        let rows=list;
+        if(curProjectFilter==='__none__') rows=groups['']||[];
+        else if(curProjectFilter) rows=groups[curProjectFilter]||[];
+        drawRows(rows);
+      }
+      else if(curProjectFilter==='__none__'){ if(groups['']) drawGroup('', groups['']) }
       else if(curProjectFilter){ if(groups[curProjectFilter]) drawGroup(curProjectFilter, groups[curProjectFilter]) }
       else { named.forEach(n=>drawGroup(n, groups[n]));
              if(groups['']) drawGroup('', groups['']) }
@@ -171,6 +188,8 @@ async function refreshList(poll=false){
         named.map(n=>`<option value="${esc(n)}" ${curProjectFilter===n?'selected':''}>📁 ${esc(n)} (${groups[n].length})</option>`).join('')+
         (groups['']?`<option value="__none__" ${curProjectFilter==='__none__'?'selected':''}>未分组 (${groups[''].length})</option>`:'');
       sel.onchange=()=>{ curProjectFilter=sel.value; renderList() };
+      $app.querySelectorAll('.vs-btn').forEach(b=>b.onclick=()=>{
+        listView=b.dataset.v; localStorage.setItem('mn_listview', listView); renderList() });
     }
     // 上传归组选择器
     const pa=document.getElementById('projAssign');
@@ -543,6 +562,42 @@ async function openSettings(){
 function startPoll(fn,ms){ stopPoll(); pollTimer=setInterval(fn,ms) }
 function stopPoll(){ if(pollTimer){clearInterval(pollTimer);pollTimer=null} }
 
+
+/* ---------- 拖拽投递 dock（拟物文件夹） ---------- */
+let _dockList=[];
+function showDropDock(){
+  let dock=document.getElementById('dropDock');
+  if(!dock){
+    dock=document.createElement('div'); dock.id='dropDock'; document.body.appendChild(dock);
+  }
+  const named=[...new Set(_dockList.map(m=>m.project||'').filter(Boolean))];
+  dock.innerHTML=`<div class="dd-title">拖到文件夹完成移动</div><div class="dd-items">${
+    named.map(n=>`<div class="dd-item" data-p="${esc(n)}"><span class="dd-icon">📁</span><span class="dd-name">${esc(n)}</span></div>`).join('')
+    +`<div class="dd-item" data-p=""><span class="dd-icon">📥</span><span class="dd-name">未分组</span></div>`
+  }</div>`;
+  dock.querySelectorAll('.dd-item').forEach(it=>{
+    it.ondragover=e=>{ e.preventDefault(); it.classList.add('open'); e.dataTransfer.dropEffect='move' };
+    it.ondragleave=()=>it.classList.remove('open');
+    it.ondrop=async e=>{
+      e.preventDefault();
+      const mid=e.dataTransfer.getData('text/meetid'); if(!mid) return;
+      const m=_dockList.find(x=>x.id===mid); if(!m) return;
+      const target=it.dataset.p;
+      if((m.project||'')===target){ hideDropDock(); return }
+      it.classList.add('dropped');
+      await api(`/api/meetings/${mid}`,{method:'PATCH',
+        headers:{'Content-Type':'application/json'},body:JSON.stringify({project:target})});
+      toast(`「${m.title}」已移至 ${target||'未分组'}`);
+      setTimeout(hideDropDock, 350);
+      renderList();
+    };
+  });
+  requestAnimationFrame(()=>dock.classList.add('show'));
+}
+function hideDropDock(){
+  const dock=document.getElementById('dropDock');
+  if(dock){ dock.classList.remove('show'); setTimeout(()=>dock.remove(), 250) }
+}
 
 /* ---------- 图表浮层 ---------- */
 function closeChartPop(){
